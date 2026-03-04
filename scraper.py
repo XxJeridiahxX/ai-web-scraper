@@ -1,5 +1,6 @@
 import argparse
 import sys
+import os
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -85,6 +86,7 @@ def main():
     parser = argparse.ArgumentParser(description="Extract clean text from web pages for AI processing.")
     parser.add_argument("url", help="The URL to scrape.")
     parser.add_argument("-o", "--output", help="Optional output file name. If not provided, one is generated from the URL.")
+    parser.add_argument("-d", "--dir", default="scraped_content", help="Optional output directory. Defaults to 'scraped_content'.")
     args = parser.parse_args()
 
     scraper = WebScraper()
@@ -94,11 +96,17 @@ def main():
     if html:
         text = scraper.extract_text(html)
         if text:
+            out_dir = args.dir
+            if not os.path.exists(out_dir):
+                os.makedirs(out_dir)
+
             out_file = args.output if args.output else generate_filename(args.url)
+            out_path = os.path.join(out_dir, out_file)
+            
             try:
-                with open(out_file, 'w', encoding='utf-8') as f:
+                with open(out_path, 'w', encoding='utf-8') as f:
                     f.write(text)
-                print(f"Content successfully saved to {out_file}", file=sys.stderr)
+                print(f"Content successfully saved to {out_path}", file=sys.stderr)
             except IOError as e:
                 print(f"Error saving to file: {e}", file=sys.stderr)
                 sys.exit(1)
