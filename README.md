@@ -24,20 +24,39 @@ A Python-based web scraper designed to extract clean text content from web pages
 
 ## Usage
 
-You can run the scraper directly from the command line by passing the target URL as an argument.
+You can run the scraper directly from the command line by passing the target URL as an argument. The scraper will automatically generate an appropriate filename based on the URL and save the extracted text into a folder named `scraped_content`.
 
 ```bash
 python scraper.py <URL>
 ```
 
-### Example
+### Options
 
+- `-o`, `--output`: Specify a custom output file name. If not provided, one is generated from the URL.
+- `-d`, `--dir`: Specify a custom output directory. Defaults to `scraped_content`.
+
+### Examples
+
+**Basic Usage:**
+Scrape an article and let the script auto-generate the filename in the default folder (`scraped_content`):
 ```bash
 python scraper.py https://en.wikipedia.org/wiki/Web_scraping
 ```
 
-The script will fetch the web page, extract the core text content, and print it to the standard output. If you want to save the output to a file, you can pipe it:
-
+**Custom File Name:**
+Save the output to a specific file in the default directory:
 ```bash
-python scraper.py https://en.wikipedia.org/wiki/Web_scraping > output.txt
+python scraper.py https://en.wikipedia.org/wiki/Web_scraping -o wiki_scraping.txt
+```
+
+**Custom Directory:**
+Save the auto-generated file to a different directory (e.g., `my_data/`):
+```bash
+python scraper.py https://en.wikipedia.org/wiki/Web_scraping -d my_data
+```
+
+**Custom File Name and Directory:**
+Specify both the exact file name and location:
+```bash
+python scraper.py https://en.wikipedia.org/wiki/Web_scraping -d output_files -o wiki.txt
 ```
