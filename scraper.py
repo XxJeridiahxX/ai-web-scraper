@@ -3,7 +3,19 @@ import sys
 import requests
 from bs4 import BeautifulSoup
 import re
+from urllib.parse import urlparse
 
+def generate_filename(url):
+    """Generates an appropriate text filename based on the URL."""
+    parsed = urlparse(url)
+    domain = parsed.netloc.replace('www.', '')
+    path = parsed.path.strip('/').replace('/', '_')
+    if not path:
+        path = "index"
+    filename = f"{domain}_{path}.txt"
+    # Clean invalid characters from filename
+    filename = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', filename)
+    return filename
 class WebScraper:
     def __init__(self, user_agent="AI Web Scraper Bot 1.0"):
         self.headers = {
@@ -72,6 +84,7 @@ class WebScraper:
 def main():
     parser = argparse.ArgumentParser(description="Extract clean text from web pages for AI processing.")
     parser.add_argument("url", help="The URL to scrape.")
+    parser.add_argument("-o", "--output", help="Optional output file name. If not provided, one is generated from the URL.")
     args = parser.parse_args()
 
     scraper = WebScraper()
@@ -81,7 +94,14 @@ def main():
     if html:
         text = scraper.extract_text(html)
         if text:
-            print(text)
+            out_file = args.output if args.output else generate_filename(args.url)
+            try:
+                with open(out_file, 'w', encoding='utf-8') as f:
+                    f.write(text)
+                print(f"Content successfully saved to {out_file}", file=sys.stderr)
+            except IOError as e:
+                print(f"Error saving to file: {e}", file=sys.stderr)
+                sys.exit(1)
         else:
             print("No main content extracted.", file=sys.stderr)
             sys.exit(1)
