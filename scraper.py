@@ -1,10 +1,14 @@
+"""
+A web scraper module that uses Playwright and BeautifulSoup to extract clean text.
+"""
 import argparse
-import sys
-import os
 import datetime
-from bs4 import BeautifulSoup
+import os
 import re
+import sys
 from urllib.parse import urlparse
+
+from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
 def get_domain_and_filename(url):
@@ -23,6 +27,7 @@ def get_domain_and_filename(url):
     filename = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', filename)
     return domain, filename
 class WebScraper:
+    """A scraper that fetches and cleans HTML content from web pages."""
     def __init__(self, user_agent="AI Web Scraper Bot 1.0"):
         self.user_agent = user_agent
 
@@ -43,7 +48,7 @@ class WebScraper:
                 html = page.content()
                 browser.close()
                 return html
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Error fetching {url}: {e}", file=sys.stderr)
             return None
 
@@ -106,6 +111,7 @@ class WebScraper:
         return full_text.strip()
 
 def main():
+    """Main entry point for the web scraper CLI."""
     parser = argparse.ArgumentParser(description="Extract clean text from web pages for AI processing.")
     parser.add_argument("url", help="The URL to scrape.")
     parser.add_argument("-o", "--output", help="Optional output file name. If not provided, one is generated from the URL.")

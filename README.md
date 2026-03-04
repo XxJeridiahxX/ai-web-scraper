@@ -1,6 +1,6 @@
 # AI Web Scraper
 
-A Python-based web scraper designed to extract clean text content from web pages, heavily optimized for consumption by AI models like LLMs. It uses `requests` and `BeautifulSoup4` to fetch and parse html, discarding visual noise, navigation, and unnecessary components to deliver a pure text payload.
+A Python-based web scraper designed to extract clean text content from web pages, heavily optimized for consumption by AI models like LLMs. It uses `Playwright` to execute JavaScript and fetch web pages, and `BeautifulSoup4` to parse html, discarding visual noise, navigation, and unnecessary components to deliver a pure text payload.
 
 ## Features
 

@@ -1,1 +1,3 @@
 venv/
+scraped_content/
+__pycache__/
