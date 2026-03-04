@@ -21,6 +21,10 @@ A Python-based web scraper designed to extract clean text content from web pages
    ```bash
    pip install -r requirements.txt
    ```
+4. Install the Playwright browser binaries (this is required to execute JavaScript on scraped pages):
+   ```bash
+   python -m playwright install chromium
+   ```
 
 ## Usage
 

@@ -1,11 +1,11 @@
 import argparse
 import sys
 import os
-import requests
 import datetime
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urlparse
+from playwright.sync_api import sync_playwright
 
 def get_domain_and_filename(url):
     """Generates an appropriate domain folder and filename based on the URL."""
@@ -24,17 +24,26 @@ def get_domain_and_filename(url):
     return domain, filename
 class WebScraper:
     def __init__(self, user_agent="AI Web Scraper Bot 1.0"):
-        self.headers = {
-            'User-Agent': user_agent
-        }
+        self.user_agent = user_agent
 
     def fetch(self, url):
-        """Fetches HTML content from the given URL."""
+        """Fetches HTML content from the given URL using a headless browser to render JavaScript."""
         try:
-            response = requests.get(url, headers=self.headers, timeout=10)
-            response.raise_for_status()
-            return response.text
-        except requests.exceptions.RequestException as e:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(user_agent=self.user_agent)
+                page = context.new_page()
+                
+                # Navigate and wait for network activity to cease
+                response = page.goto(url, wait_until="networkidle", timeout=30000)
+                
+                if response and not response.ok:
+                    print(f"Warning: HTTP status {response.status} for {url}", file=sys.stderr)
+                    
+                html = page.content()
+                browser.close()
+                return html
+        except Exception as e:
             print(f"Error fetching {url}: {e}", file=sys.stderr)
             return None
 
@@ -53,36 +62,45 @@ class WebScraper:
         self.clean_html(soup)
 
         # Try to find the main content block to avoid sidebars and menus
-        main_content = (soup.find('main') or 
-                        soup.find('article') or 
-                        soup.find(id=re.compile(r'content|main', re.I)) or 
-                        soup.find(class_=re.compile(r'content|main', re.I)))
+        potential_mains = [
+            soup.find('main'),
+            soup.find('article'),
+            soup.find(['div', 'section'], id=re.compile(r'content|main', re.I)),
+            soup.find(['div', 'section'], class_=re.compile(r'content|main', re.I))
+        ]
         
-        # If no main container found, use the body
+        main_content = None
+        for candidate in potential_mains:
+            if candidate and len(candidate.get_text(strip=True)) > 50:
+                main_content = candidate
+                break
+        
+        # If no main container found with substantial text, use the body
         root_element = main_content if main_content else soup.body if soup.body else soup
 
-        extracted_text = []
+        # Convert headers and list items to preserve markdown formatting
+        for i in range(1, 7):
+            for h in root_element.find_all(f'h{i}'):
+                text = h.get_text(strip=True)
+                if text:
+                    h.clear()
+                    h.append(f"MARKDOWN_H{i} {text}")
+                    
+        for li in root_element.find_all('li'):
+            text = li.get_text(strip=True)
+            if text:
+                li.clear()
+                li.append(f"MARKDOWN_LI {text}")
 
-        # Extract textual elements in order
-        for el in root_element.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li']):
-            text = el.get_text(strip=True)
-            if not text:
-                continue
+        # Extract all textual content, flattening divs/spans
+        full_text = root_element.get_text(separator='\n', strip=True)
 
-            # Format headers with markdown
-            if el.name.startswith('h'):
-                level = int(el.name[1])
-                extracted_text.append(f"\n{'#' * level} {text}\n")
-            elif el.name == 'li':
-                # Convert list items to markdown lists
-                extracted_text.append(f"- {text}")
-            else:
-                extracted_text.append(text)
-
-        # Join the elements dynamically
-        full_text = "\n".join(extracted_text)
+        # Restore markdown formatting
+        for i in range(1, 7):
+            full_text = full_text.replace(f"MARKDOWN_H{i} ", f"\n\n{'#' * i} ")
+        full_text = full_text.replace("MARKDOWN_LI ", "\n- ")
         
-        # Remove any excessive empty lines
+        # Clean up excessive empty lines
         full_text = re.sub(r'\n{3,}', '\n\n', full_text)
         
         return full_text.strip()
