@@ -2,21 +2,26 @@ import argparse
 import sys
 import os
 import requests
+import datetime
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urlparse
 
-def generate_filename(url):
-    """Generates an appropriate text filename based on the URL."""
+def get_domain_and_filename(url):
+    """Generates an appropriate domain folder and filename based on the URL."""
     parsed = urlparse(url)
     domain = parsed.netloc.replace('www.', '')
     path = parsed.path.strip('/').replace('/', '_')
     if not path:
         path = "index"
-    filename = f"{domain}_{path}.txt"
-    # Clean invalid characters from filename
+    
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Clean invalid characters
+    domain = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', domain)
+    filename = f"{path}_{timestamp}.txt"
     filename = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', filename)
-    return filename
+    return domain, filename
 class WebScraper:
     def __init__(self, user_agent="AI Web Scraper Bot 1.0"):
         self.headers = {
@@ -86,7 +91,7 @@ def main():
     parser = argparse.ArgumentParser(description="Extract clean text from web pages for AI processing.")
     parser.add_argument("url", help="The URL to scrape.")
     parser.add_argument("-o", "--output", help="Optional output file name. If not provided, one is generated from the URL.")
-    parser.add_argument("-d", "--dir", default="scraped_content", help="Optional output directory. Defaults to 'scraped_content'.")
+    parser.add_argument("-d", "--dir", default="scraped_content", help="Optional base output directory. Defaults to 'scraped_content'.")
     args = parser.parse_args()
 
     scraper = WebScraper()
@@ -96,11 +101,19 @@ def main():
     if html:
         text = scraper.extract_text(html)
         if text:
-            out_dir = args.dir
+            domain, auto_file = get_domain_and_filename(args.url)
+            
+            # If no output file is specified, organize into a domain folder
+            if not args.output:
+                out_dir = os.path.join(args.dir, domain)
+                out_file = auto_file
+            else:
+                out_dir = args.dir
+                out_file = args.output
+
             if not os.path.exists(out_dir):
                 os.makedirs(out_dir)
 
-            out_file = args.output if args.output else generate_filename(args.url)
             out_path = os.path.join(out_dir, out_file)
             
             try:

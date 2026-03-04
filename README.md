@@ -24,7 +24,7 @@ A Python-based web scraper designed to extract clean text content from web pages
 
 ## Usage
 
-You can run the scraper directly from the command line by passing the target URL as an argument. The scraper will automatically generate an appropriate filename based on the URL and save the extracted text into a folder named `scraped_content`.
+You can run the scraper directly from the command line by passing the target URL as an argument. The scraper will automatically generate an appropriate filename based on the URL (and current time) and save the extracted text into a domain-specific folder inside `scraped_content`.
 
 ```bash
 python scraper.py <URL>
@@ -33,30 +33,30 @@ python scraper.py <URL>
 ### Options
 
 - `-o`, `--output`: Specify a custom output file name. If not provided, one is generated from the URL.
-- `-d`, `--dir`: Specify a custom output directory. Defaults to `scraped_content`.
+- `-d`, `--dir`: Specify a custom base output directory. Defaults to `scraped_content`.
 
 ### Examples
 
 **Basic Usage:**
-Scrape an article and let the script auto-generate the filename in the default folder (`scraped_content`):
+Scrape an article and let the script auto-generate the filename in a domain folder (e.g., `scraped_content/en.wikipedia.org/wiki_Web_scraping_2023-10-27_14-30-00.txt`):
 ```bash
 python scraper.py https://en.wikipedia.org/wiki/Web_scraping
 ```
 
 **Custom File Name:**
-Save the output to a specific file in the default directory:
+Save the output to a specific file in the base directory (this bypasses the domain folder logic):
 ```bash
 python scraper.py https://en.wikipedia.org/wiki/Web_scraping -o wiki_scraping.txt
 ```
 
 **Custom Directory:**
-Save the auto-generated file to a different directory (e.g., `my_data/`):
+Save the auto-generated domain folder and file to a different directory (e.g., `my_data/en.wikipedia.org/wiki_Web_scraping_2023-10-27_14-30-00.txt`):
 ```bash
 python scraper.py https://en.wikipedia.org/wiki/Web_scraping -d my_data
 ```
 
 **Custom File Name and Directory:**
-Specify both the exact file name and location:
+Specify both the exact file name and location (this bypasses the domain folder logic):
 ```bash
 python scraper.py https://en.wikipedia.org/wiki/Web_scraping -d output_files -o wiki.txt
 ```
