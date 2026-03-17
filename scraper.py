@@ -6,7 +6,7 @@ import datetime
 import os
 import re
 import sys
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
@@ -67,16 +67,35 @@ class WebScraper:
         self.clean_html(soup)
 
         # Try to find the main content block to avoid sidebars and menus
+        # Use word boundaries or strict matching to avoid fetching things like 'navLinksContentId'
+        content_regex = re.compile(r'\b(main|content)\b', re.I)
+        
         potential_mains = [
             soup.find('main'),
             soup.find('article'),
-            soup.find(['div', 'section'], id=re.compile(r'content|main', re.I)),
-            soup.find(['div', 'section'], class_=re.compile(r'content|main', re.I))
         ]
         
+        # Add elements that have main/content in id but avoid nav/menu/sidebar
+        for tag in ['div', 'section']:
+            for el in soup.find_all(tag, id=content_regex):
+                if not re.search(r'nav|menu|sidebar|header|footer', el.get('id', ''), re.I):
+                    potential_mains.append(el)
+            for el in soup.find_all(tag, class_=content_regex):
+                class_str = ' '.join(el.get('class', []))
+                if not re.search(r'nav|menu|sidebar|header|footer', class_str, re.I):
+                    potential_mains.append(el)
+        
         main_content = None
-        for candidate in potential_mains:
-            if candidate and len(candidate.get_text(strip=True)) > 50:
+        body_text_len = len(soup.body.get_text(strip=True)) if soup.body else 0
+        
+        # Sort candidates by length of text to find the largest meaningful container
+        valid_candidates = [c for c in potential_mains if c]
+        valid_candidates.sort(key=lambda x: len(x.get_text(strip=True)), reverse=True)
+        
+        for candidate in valid_candidates:
+            text_len = len(candidate.get_text(strip=True))
+            # Require the candidate to contain at least 40% of the visible body text
+            if text_len > 50 and (body_text_len == 0 or (text_len / body_text_len) > 0.4):
                 main_content = candidate
                 break
         
@@ -110,48 +129,117 @@ class WebScraper:
         
         return full_text.strip()
 
+    def extract_internal_links(self, html_content, base_url):
+        """Finds all internal links in the HTML and returns a list of unique absolute URLs."""
+        if not html_content:
+            return []
+            
+        soup = BeautifulSoup(html_content, 'html.parser')
+        parsed_base = urlparse(base_url)
+        base_domain = parsed_base.netloc.replace('www.', '')
+        
+        links = set()
+        for a in soup.find_all('a', href=True):
+            href = a['href'].strip()
+            if not href or href.startswith(('javascript:', 'mailto:', 'tel:')):
+                continue
+                
+            if href.startswith('#'):
+                continue
+                
+            full_url = urljoin(base_url, href)
+            parsed_url = urlparse(full_url)
+            full_url = full_url.split('#')[0]
+            
+            url_domain = parsed_url.netloc.replace('www.', '')
+            if url_domain == base_domain:
+                links.add(full_url)
+                
+        return list(links)
+        
+    def crawl(self, start_url, output_dir, max_pages=50, output_name=None):
+        """Crawls the domain starting from start_url, up to max_pages, and saves to a single file."""
+        domain, auto_file = get_domain_and_filename(start_url)
+        out_dir = os.path.join(output_dir, domain)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+            
+        out_file_name = output_name if output_name else auto_file
+        out_path = os.path.join(out_dir, out_file_name)
+            
+        visited = set()
+        queue = [start_url]
+        pages_crawled = 0
+        aggregated_text = []
+        
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(user_agent=self.user_agent)
+                page = context.new_page()
+                
+                while queue and pages_crawled < max_pages:
+                    url = queue.pop(0)
+                    if url in visited:
+                        continue
+                        
+                    visited.add(url)
+                    print(f"Crawling ({pages_crawled+1}/{max_pages}): {url}", file=sys.stderr)
+                    
+                    try:
+                        response = page.goto(url, wait_until="networkidle", timeout=30000)
+                        if response and not response.ok:
+                            print(f"Warning: HTTP status {response.status} for {url}", file=sys.stderr)
+                    except Exception as e:
+                        print(f"Error fetching {url}: {e}", file=sys.stderr)
+                        continue
+                        
+                    html = page.content()
+                    text = self.extract_text(html)
+                    
+                    if text:
+                        page_divider = f"\n\n========================================\nURL: {url}\n========================================\n\n"
+                        aggregated_text.append(page_divider + text)
+                            
+                    # Add new internal links to queue
+                    new_links = self.extract_internal_links(html, url)
+                    for link in new_links:
+                        # normalize
+                        if link not in visited and link not in queue:
+                            queue.append(link)
+                            
+                    pages_crawled += 1
+                    
+                browser.close()
+                print(f"Crawl completed. Crawled {pages_crawled} pages.", file=sys.stderr)
+                
+                # Write aggregated text to the single output file
+                if aggregated_text:
+                    try:
+                        with open(out_path, 'w', encoding='utf-8') as f:
+                            f.write("".join(aggregated_text))
+                        print(f"All content successfully saved to {out_path}", file=sys.stderr)
+                    except IOError as e:
+                        print(f"Error saving to file: {e}", file=sys.stderr)
+                else:
+                    print("No main content extracted from any pages.", file=sys.stderr)
+                    
+        except Exception as e:
+            print(f"Browser error during crawl: {e}", file=sys.stderr)
+
 def main():
     """Main entry point for the web scraper CLI."""
-    parser = argparse.ArgumentParser(description="Extract clean text from web pages for AI processing.")
-    parser.add_argument("url", help="The URL to scrape.")
+    parser = argparse.ArgumentParser(description="Extract clean text from entire websites for AI processing.")
+    parser.add_argument("url", help="The URL to start crawling from.")
     parser.add_argument("-o", "--output", help="Optional output file name. If not provided, one is generated from the URL.")
     parser.add_argument("-d", "--dir", default="scraped_content", help="Optional base output directory. Defaults to 'scraped_content'.")
+    parser.add_argument("--max-pages", type=int, default=50, help="Maximum number of pages to crawl (default: 50).")
     args = parser.parse_args()
 
     scraper = WebScraper()
-    print(f"Fetching: {args.url}...", file=sys.stderr)
     
-    html = scraper.fetch(args.url)
-    if html:
-        text = scraper.extract_text(html)
-        if text:
-            domain, auto_file = get_domain_and_filename(args.url)
-            
-            # If no output file is specified, organize into a domain folder
-            if not args.output:
-                out_dir = os.path.join(args.dir, domain)
-                out_file = auto_file
-            else:
-                out_dir = args.dir
-                out_file = args.output
-
-            if not os.path.exists(out_dir):
-                os.makedirs(out_dir)
-
-            out_path = os.path.join(out_dir, out_file)
-            
-            try:
-                with open(out_path, 'w', encoding='utf-8') as f:
-                    f.write(text)
-                print(f"Content successfully saved to {out_path}", file=sys.stderr)
-            except IOError as e:
-                print(f"Error saving to file: {e}", file=sys.stderr)
-                sys.exit(1)
-        else:
-            print("No main content extracted.", file=sys.stderr)
-            sys.exit(1)
-    else:
-        sys.exit(1)
+    print(f"Starting crawl at: {args.url} (max {args.max_pages} pages)", file=sys.stderr)
+    scraper.crawl(args.url, args.dir, args.max_pages, args.output)
 
 if __name__ == "__main__":
     main()
