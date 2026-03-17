@@ -157,7 +157,7 @@ class WebScraper:
                 
         return list(links)
         
-    def crawl(self, start_url, output_dir, max_pages=50, output_name=None):
+    def crawl(self, start_url, output_dir, max_pages=0, output_name=None):
         """Crawls the domain starting from start_url, up to max_pages, and saves to a single file."""
         domain, auto_file = get_domain_and_filename(start_url)
         out_dir = os.path.join(output_dir, domain)
@@ -178,13 +178,14 @@ class WebScraper:
                 context = browser.new_context(user_agent=self.user_agent)
                 page = context.new_page()
                 
-                while queue and pages_crawled < max_pages:
+                while queue and (max_pages == 0 or pages_crawled < max_pages):
                     url = queue.pop(0)
                     if url in visited:
                         continue
                         
                     visited.add(url)
-                    print(f"Crawling ({pages_crawled+1}/{max_pages}): {url}", file=sys.stderr)
+                    max_pages_str = f"/{max_pages}" if max_pages > 0 else ""
+                    print(f"Crawling ({pages_crawled+1}{max_pages_str}): {url}", file=sys.stderr)
                     
                     try:
                         response = page.goto(url, wait_until="networkidle", timeout=30000)
@@ -233,12 +234,15 @@ def main():
     parser.add_argument("url", help="The URL to start crawling from.")
     parser.add_argument("-o", "--output", help="Optional output file name. If not provided, one is generated from the URL.")
     parser.add_argument("-d", "--dir", default="scraped_content", help="Optional base output directory. Defaults to 'scraped_content'.")
-    parser.add_argument("--max-pages", type=int, default=50, help="Maximum number of pages to crawl (default: 50).")
+    parser.add_argument("--max-pages", type=int, default=0, help="Maximum number of pages to crawl (default: 0 for unlimited).")
     args = parser.parse_args()
 
     scraper = WebScraper()
     
-    print(f"Starting crawl at: {args.url} (max {args.max_pages} pages)", file=sys.stderr)
+    if args.max_pages > 0:
+        print(f"Starting crawl at: {args.url} (max {args.max_pages} pages)", file=sys.stderr)
+    else:
+        print(f"Starting crawl at: {args.url} (unlimited pages)", file=sys.stderr)
     scraper.crawl(args.url, args.dir, args.max_pages, args.output)
 
 if __name__ == "__main__":

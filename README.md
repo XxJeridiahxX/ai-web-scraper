@@ -28,7 +28,9 @@ A Python-based web scraper designed to extract clean text content from web pages
 
 ## Usage
 
-You can run the scraper directly from the command line by passing the target URL as an argument. The scraper will automatically generate an appropriate filename based on the URL (and current time) and save the extracted text into a domain-specific folder inside `scraped_content`.
+You can run the scraper directly from the command line by passing the target URL as an argument. By default, the scraper will **crawl the entire domain** associated with the URL, discovering and extracting text from all internal links it finds.
+
+The extracted text from all discovered pages will be aggregated and saved into a single, unified `.txt` file inside a domain-specific folder under `scraped_content`.
 
 ```bash
 python scraper.py <URL>
@@ -36,31 +38,32 @@ python scraper.py <URL>
 
 ### Options
 
-- `-o`, `--output`: Specify a custom output file name. If not provided, one is generated from the URL.
+- `--max-pages`: Set a limit on the maximum number of pages to crawl. Defaults to `0` (unlimited crawling).
+- `-o`, `--output`: Specify a custom output file name for the aggregated text. If not provided, it generates one automatically from the domain and timestamp.
 - `-d`, `--dir`: Specify a custom base output directory. Defaults to `scraped_content`.
 
 ### Examples
 
-**Basic Usage:**
-Scrape an article and let the script auto-generate the filename in a domain folder (e.g., `scraped_content/en.wikipedia.org/wiki_Web_scraping_2023-10-27_14-30-00.txt`):
+**Full Domain Crawl (Default Behavior):**
+Scrape the entire domain starting from a specific URL. It will automatically follow all internal links and generate a single aggregated file like `scraped_content/pcvcare.com/index_2026-03-17_14-30-00.txt`:
 ```bash
-python scraper.py https://en.wikipedia.org/wiki/Web_scraping
+python scraper.py https://pcvcare.com
 ```
 
-**Custom File Name:**
-Save the output to a specific file in the base directory (this bypasses the domain folder logic):
+**Limit Crawl Depth:**
+Crawl the domain but stop after extracting 10 pages:
 ```bash
-python scraper.py https://en.wikipedia.org/wiki/Web_scraping -o wiki_scraping.txt
+python scraper.py https://pcvcare.com --max-pages 10
 ```
 
-**Custom Directory:**
-Save the auto-generated domain folder and file to a different directory (e.g., `my_data/en.wikipedia.org/wiki_Web_scraping_2023-10-27_14-30-00.txt`):
+**Custom Output Name:**
+Save the single aggregated text output to a specific file name inside the domain folder:
 ```bash
-python scraper.py https://en.wikipedia.org/wiki/Web_scraping -d my_data
+python scraper.py https://pcvcare.com -o pcvcare_full_scrape.txt
 ```
 
-**Custom File Name and Directory:**
-Specify both the exact file name and location (this bypasses the domain folder logic):
+**Custom Output Directory:**
+Save the output to a different root directory instead of the default `scraped_content`:
 ```bash
-python scraper.py https://en.wikipedia.org/wiki/Web_scraping -d output_files -o wiki.txt
+python scraper.py https://pcvcare.com -d my_datasets
 ```
